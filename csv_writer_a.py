@@ -4,7 +4,6 @@
 # Written by Peter Claydon
 #
 ModuleName = "csv_writer" 
-FILENAME = CB_CONFIG_DIR + "csv_writer.csv"
 
 import sys
 import os.path
@@ -13,32 +12,29 @@ import logging
 from cbcommslib import CbApp
 from cbconfig import *
 
+FILENAME = CB_CONFIG_DIR + "csv_writer.csv"
+
 config = {
-    'temperature': 'True',
-    'temp_min_change': 0.2,
-    'irtemperature': 'False',
-    'irtemp_min_change': 0.5,
-    'humidity': 'True',
-    'humidity_min_change': 0.2,
-    'buttons': 'False',
-    'accel': 'False',
-    'accel_min_change': 0.02,
-    'accel_polling_interval': 3.0,
-    'gyro': 'False',
-    'gyro_min_change': 0.5,
+    "temperature": "True",
+    "temp_min_change": 0.2,
+    "irtemperature": "True",
+    "irtemp_min_change": 0.5,
+    "humidity": "True",
+    "humidity_min_change": 0.2,
+    "buttons": "True",
+    "accel": "False",
+    "accel_min_change": 0.02,
+    "accel_polling_interval": 3.0,
+    "gyro": "False",
+    "gyro_min_change": 0.5,
     "gyro_polling_interval": 3.0,
-    'magnet': 'False',
-    'magnet_min_change': 1.5,
-    'magnet_polling_interval': 3.0,
-    'binary': 'True',
-    'luminance': 'True',
-    'luminance_min_change': 1.0,
-    'power': 'True',
-    'power_min_change': 1.0,
-    'battery': 'True',
-    'battery_min_change': 1.0,
-    'connected': 'True',
-    'slow_polling_interval': 600.0
+    "magnet": "True",
+    "magnet_min_change": 1.5,
+    "magnet_polling_interval": 3.0,
+    "binary": "True",
+    "luminance": "True",
+    "luminance_min_change": 1.0,
+    "slow_polling_interval": 300
 }
 
 class DataManager:
@@ -128,6 +124,12 @@ class DataManager:
         for i in range(3):
             self.cvsLine[index*self.numberServices + 8 + i] = str("%2.3f" %magnet[i])
 
+    def storeBinary(self, deviceID, timeStamp, b):
+        pass
+
+    def storeLuminance(self, deviceID, timeStamp, v):
+        pass
+
 class Accelerometer:
     def __init__(self, id):
         self.previous = [0.0, 0.0, 0.0]
@@ -138,7 +140,7 @@ class Accelerometer:
         timeStamp = resp["timeStamp"]
         event = False
         for a in range(3):
-            if abs(accel[a] - self.previous[a]) > ACCEL_MIN_CHANGE:
+            if abs(accel[a] - self.previous[a]) > config["accel_min_change"]:
                 event = True
                 break
         if event:
@@ -166,7 +168,7 @@ class TemperatureMeasure():
                 self.dm.storeTemp(self.id, self.prevEpochMin, temp) 
                 self.prevEpochMin = epochMin
         else:
-            if abs(temp-self.currentTemp) >= TEMP_MIN_CHANGE:
+            if abs(temp-self.currentTemp) >= config["temp_min_change"]:
                 self.dm.storeTemp(self.id, timeStamp, temp) 
                 self.currentTemp = temp
 
@@ -188,10 +190,10 @@ class IrTemperatureMeasure():
             epochMin = int(timeStamp - timeStamp%60)
             if epochMin != self.prevEpochMin:
                 temp = resp["data"]
-                self.dm.storeIrTemp(self.id, self.prevEpochMin, temp) 
+                self.dm.storeTemp(self.id, self.prevEpochMin, temp) 
                 self.prevEpochMin = epochMin
         else:
-            if abs(temp-self.currentTemp) >= IRTEMP_MIN_CHANGE:
+            if abs(temp-self.currentTemp) >= config["irtemp_min_change"]:
                 self.dm.storeIrTemp(self.id, timeStamp, temp) 
                 self.currentTemp = temp
 
@@ -214,7 +216,7 @@ class Gyro():
         timeStamp = resp["timeStamp"] 
         event = False
         for a in range(3):
-            if abs(gyro[a] - self.previous[a]) > GYRO_MIN_CHANGE:
+            if abs(gyro[a] - self.previous[a]) > config["gyro_min_change"]:
                 event = True
                 break
         if event:
@@ -231,7 +233,7 @@ class Magnet():
         timeStamp = resp["timeStamp"] 
         event = False
         for a in range(3):
-            if abs(mag[a] - self.previous[a]) > MAGNET_MIN_CHANGE:
+            if abs(mag[a] - self.previous[a]) > config["magnet_min_change"]:
                 event = True
                 break
         if event:
@@ -247,9 +249,38 @@ class Humid():
     def processHumidity (self, resp):
         h = resp["data"]
         timeStamp = resp["timeStamp"] 
-        if abs(h-self.previous) >= HUMIDITY_MIN_CHANGE:
+        if abs(h-self.previous) >= config["humidity_min_change"]:
             self.dm.storeHumidity(self.id, timeStamp, h) 
             self.previous = h
+
+class Binary():
+    def __init__(self, id):
+        self.id = id
+        self.previous = 0
+
+    def processBinary(self, resp):
+        timeStamp = resp["timeStamp"] 
+        b = resp["data"]
+        if b == "on":
+            bi = 1
+        else:
+            bi = 0
+        if bi != self.previous:
+            self.dm.storeBinary(self.id, timeStamp-1.0, self.previous)
+            self.dm.storeBinary(self.id, timeStamp, bi)
+            self.previous = bi
+
+class Luminance():
+    def __init__(self, id):
+        self.id = id
+        self.previous = 0
+
+    def processLuminance(self, resp):
+        v = resp["data"]
+        timeStamp = resp["timeStamp"] 
+        if abs(v-self.previous) >= config["luminance_min_change"]:
+            self.dm.storeLuminance(self.id, timeStamp, v) 
+            self.previous = v
 
 class App(CbApp):
     def __init__(self, argv):
@@ -282,8 +313,6 @@ class App(CbApp):
         self.binary = []
         self.luminance = []
         self.power = []
-        self.battery = []
-        self.connected = []
         self.devices = []
         self.devServices = [] 
         self.idToName = {} 
@@ -373,16 +402,6 @@ class App(CbApp):
                 if b.id == self.idToName[message["id"]]:
                     b.processPower(message)
                     break
-        elif message["characteristic"] == "battery":
-            for b in self.battery:
-                if b.id == self.idToName[message["id"]]:
-                    b.processBattery(message)
-                    break
-        elif message["characteristic"] == "connected":
-            for b in self.connected:
-                if b.id == self.idToName[message["id"]]:
-                    b.processConnected(message)
-                    break
         elif message["characteristic"] == "luminance":
             for b in self.luminance:
                 if b.id == self.idToName[message["id"]]:
@@ -443,24 +462,6 @@ class App(CbApp):
                     self.binary[-1].dm = self.dm
                     serviceReq.append({"characteristic": "binary_sensor",
                                        "interval": 0})
-            elif p["characteristic"] == "power":
-                if config["power"] == 'True':
-                    self.power.append(Power(self.idToName[message["id"]]))
-                    self.power[-1].dm = self.dm
-                    serviceReq.append({"characteristic": "power",
-                                       "interval": 0})
-            elif p["characteristic"] == "battery":
-                if config["battery"] == 'True':
-                    self.battery.append(Battery(self.idToName[message["id"]]))
-                    self.battery[-1].dm = self.dm
-                    serviceReq.append({"characteristic": "battery",
-                                       "interval": 0})
-            elif p["characteristic"] == "connected":
-                if config["connected"] == 'True':
-                    self.connected.append(Connected(self.idToName[message["id"]]))
-                    self.connected[-1].dm = self.dm
-                    serviceReq.append({"characteristic": "connected",
-                                       "interval": 0})
             elif p["characteristic"] == "luminance":
                 if config["luminance"] == 'True':
                     self.luminance.append(Luminance(self.idToName[message["id"]]))
@@ -485,6 +486,7 @@ class App(CbApp):
                 self.idToName[adtID] = friendly_name.replace(" ", "_")
                 self.devices.append(adtID)
         self.dm = DataManager(self.bridge_id)
+        self.dm.initFile(self.idToName)
         self.setState("starting")
 
 if __name__ == '__main__':

@@ -1,9 +1,9 @@
 {
     "exe": "csv_writer.py", 
     "name": "CSV Writer", 
-    "url": "https://github.com/ContinuumBridge/csv_writer/archive/v0.1.0.tar.gz", 
+    "url": "https://github.com/ContinuumBridge/csv_writer_app/archive/v0.1.1.tar.gz", 
     "app_resource": "/api/bridge/v1/app/14/", 
-    "version": "0.1.0", 
+    "version": "0.1.1", 
     "provider": "ContinuumBridge", 
     "description": "Example of an app that writes sensor values to a csv file"
 }
